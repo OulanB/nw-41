@@ -1,5 +1,5 @@
 # nw-41
-HP 41 emulator for numworks with Omega (external app)
+HP 41 emulator for numworks with Omega 1.20 as external app
 
 - full HP41CX emulated
 - save state when leave (HOME) in a 8KB variable
