@@ -8,3 +8,6 @@ HP 41 emulator for numworks with Omega 1.20 as external app
   part is integrated in the external api (extapp_timedate)
 - key mapping is illustrated in Docs
 - ED key mapping is not tested at all ;)
+
+LCD part should be rewritten : 
+ Do not move data in array !! instead use a pointer to keep the current index ;)
