@@ -11,3 +11,6 @@ HP 41 emulator for numworks with Omega 1.20 as external app
 
 LCD part should be rewritten : 
  Do not move data in array !! instead use a pointer to keep the current index ;)
+ Done :)
+
+Correcting some keycodes
