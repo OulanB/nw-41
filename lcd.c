@@ -20,8 +20,11 @@
 uint8_t lcdEnable;
 
 static uint8_t lA[12];
+static int xA = 0;
 static uint8_t lB[12];
+static int xB = 0;
 static uint8_t lC[12];
+static int xC = 0;
 uint16_t lE;
 
 static uint8_t changedL = 0;
@@ -33,7 +36,7 @@ const static uint16_t* gfxptr;
 uint8_t lcdDigits[] = {0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x3B};
 uint8_t lcdDots[] = {0,1,2,3,4,0,1,2,3,4,0,1};
 
-static void zeroTm() {
+static inline void zeroTm() {
     memset(lcdDigits, 32, 12);
     memset(lcdDots, 0, 12);
 }
@@ -64,159 +67,191 @@ void displayToggle() {
     changedL = 1;        
 }
 
-void displayCi() {
+void displayCi() {      // lcd compensation, not needed ;)
 
 }
 
-static void readAnnun(uint8_t *c) {
-    c[0] = (uint8_t) (lE & 0x00F);
-    c[1] = (uint8_t) ((lE >> 4) & 0x00F);
-    c[2] = (uint8_t) (lE >> 8);
-    c[3] = c[4] = c[5] = c[6] = c[7] = c[8] = c[9] = c[10] = c[11] = c[12] = c[13] = 0;
-}
 void lcdWriteAnnun(uint8_t *c) {
     lE = (uint16_t)(c[0] | (c[1] << 4) | (c[2] << 8));
     changedA = 1;
 }
 
-static void lcdRot (uint8_t *reg, uint8_t dir) {
-    int i;
-    uint8_t t;
-    if (dir) {
-        t = reg [0];
-        for(i = 0; i < 11; i++)
-            reg[i] = reg[i + 1];
-        reg[11] = t;
-    } else {
-        t = reg[11];
-        for(i = 11; i > 0; i--)
-            reg[i] = reg[i - 1];
-        reg [0] = t;
-    }
-}
-static void lcdRdReg12(uint8_t *nutC, uint8_t *lcd) {
-    for (int i = 0, j = 11; i < 12; i++, j--) 
-        nutC[i] = lcd[j];
-    nutC[12] = nutC[13] = 0;
-}
-static void lcdRdReg1(uint8_t *c, uint8_t regs, uint8_t dir) {
-    int j = 0;
-    uint8_t d = (dir) ? 0 : 11;
-    if ((regs & 1) != 0) {				// __a reg
-        c[j++] = lA[d];
-        lcdRot(lA, dir);
-    }
-    if ((regs & 2) != 0) {
-        c[j++] = lB[d];
-        lcdRot(lB, dir);
-    }
-    if ((regs & 4) != 0) {
-        c[j++] = lC[d];
-        lcdRot(lC, dir);
-    }
-    while (j < 14) 
-        c[j++] = 0;
-}
-static void lcdRdReg(uint8_t *c, uint8_t regs, uint8_t n, uint8_t dir) {
-    int i, j = 0;
-    uint8_t d = (dir) ? 0 : 11;
-    for(i = 0; i < n; i++) {
-        if ((regs & 1) != 0) {				// __a reg
-            c[j++] = lA[d];
-            lcdRot(lA, dir);
-        }
-        if ((regs & 2) != 0) {
-            c[j++] = lB[d];
-            lcdRot(lB, dir);
-        }
-        if ((regs & 4) != 0) {
-            c[j++] = lC[d];
-            lcdRot(lC, dir);
-        }
-    }
-    while (j < 14)
-        c[j++] = 0;
-}
 void lcdReadReg(uint8_t adr, uint8_t *c) {
+    int i = 0;
     switch (adr) {
-        case 0x0:  lcdRdReg12(c, lA);  		break;
-        case 0x1:  lcdRdReg12(c, lB);  		break;
-        case 0x2:  lcdRdReg12(c, lC);  		break;
-        case 0x3:  lcdRdReg(c, 3, 6, 0);  	break;
-        case 0x4:  lcdRdReg(c, 7, 4, 0);  	break;
-        case 0x5:  readAnnun(c);           	break;
-        case 0x6:  lcdRdReg1(c, 4, 0); 		break;
-        case 0x7:  lcdRdReg1(c, 1, 1); 		break;
-        case 0x8:  lcdRdReg1(c, 2, 1); 		break;
-        case 0x9:  lcdRdReg1(c, 4, 1); 		break;
-        case 0xa:  lcdRdReg1(c, 1, 0); 		break;
-        case 0xb:  lcdRdReg1(c, 2, 0); 		break;
-        case 0xc:  lcdRdReg1(c, 3, 1); 		break;
-        case 0xd:  lcdRdReg1(c, 3, 0); 		break;
-        case 0xe:  lcdRdReg1(c, 7, 1); 		break;
-        case 0xf:  lcdRdReg1(c, 7, 0); 		break;
+        case 0x0: // l A
+            for (int j = xA; i < 12; i++) {
+                j = (j+11) % 12;
+                c[i] = lA[j];
+            } break;
+        case 0x1: // l B
+            for (int j = xB; i < 12; i++) {
+                j = (j+11) % 12;
+                c[i] = lB[j];
+            } break;
+        case 0x2: // l C
+            for (int j = xC; i < 12; i++) {
+                j = (j+11) % 12;
+                c[i] = lC[j];
+            } break;
+        case 0x3: // l A B
+            for (; i < 12; ) {
+                xA = (xA+11) % 12;  
+                c[i++] = lA[xA];
+                xB = (xB+11) % 12; 
+                c[i++] = lB[xB];
+            } break;
+        case 0x4: // l A B C
+            for (; i < 12; ) {
+                xA = (xA+11) % 12;  
+                c[i++] = lA[xA];
+                xB = (xB+11) % 12; 
+                c[i++] = lB[xB];
+                xC = (xC+11) % 12; 
+                c[i++] = lC[xC];
+            } break;
+        case 0x5: // read annunciators
+            c[i++] = (uint8_t) (lE & 0x00F);
+            c[i++] = (uint8_t) ((lE >> 4) & 0x00F);
+            c[i++] = (uint8_t) (lE >> 8);
+            break;
+        case 0x6: // 1l C
+            xC = (xC+11) % 12;    
+            c[i++] = lC[xC]; break;
+        case 0x7: // 1r A
+            c[i++] = lA[xA];
+            xA = (xA+1) % 12; break;
+        case 0x8: // 1r B
+            c[i++] = lB[xB];
+            xB = (xB+1) % 12; break;
+        case 0x9: // 1r C
+            c[i++] = lC[xC];
+            xC = (xC+1) % 12; break;
+        case 0xa: // 1l A
+            xA = (xA+11) % 12;    
+            c[i++] = lA[xA]; break;
+        case 0xb: // 1l B
+            xB = (xB+11) % 12;    
+            c[i++] = lB[xB]; break;
+        case 0xc: // 1r A B
+            c[i++] = lA[xA];
+            xA = (xA+1) % 12;
+            c[i++] = lB[xB];
+            xB = (xB+1) % 12; break;
+        case 0xd: // 1l A B
+            xA = (xA+11) % 12;    
+            c[i++] = lA[xA]; 
+            xB = (xB+11) % 12;    
+            c[i++] = lB[xB]; break;
+        case 0xe: // 1r A B C
+            c[i++] = lA[xA];
+            xA = (xA+1) % 12;
+            c[i++] = lB[xB];
+            xB = (xB+1) % 12;
+            c[i++] = lC[xC];
+            xC = (xC+1) % 12; break;
+        default:  // 1l A B C
+            xA = (xA+11) % 12;    
+            c[i++] = lA[xA]; 
+            xB = (xB+11) % 12;    
+            c[i++] = lB[xB]; 
+            xC = (xC+11) % 12;    
+            c[i++] = lC[xC]; break;
     }
-    if ((adr > 2) && (adr != 5)) 
+    while (i < 14)
+        c[i++] = 0;
+    if ((adr > 2) && (adr !=5))
         changedL = 1;
 }
 
-static void lcdWrReg(uint8_t *c, uint8_t regs, uint8_t n, uint8_t dir) {
-    int i, j = 0;
-    uint8_t d = (dir) ? 11 : 0;
-    for (i = 0; i < n; i++) {
-        if ((regs & 1) != 0) {
-            lcdRot(lA, dir);
-            lA[d] = c[j++];
-        }
-        if ((regs & 2) != 0) {
-            lcdRot(lB, dir);
-            lB[d] = c[j++];
-        }
-        if ((regs & 4) != 0) {
-            lcdRot(lC, dir);
-            lC[d] = c[j++] & 1;
-        }
-    }
-}	
-static void lcdWrReg12(uint8_t *nutC, uint8_t *lcd) {
-    for (int i = 0; i < 12; i++)
-        lcd[i] = nutC[i];
-}	
-static void lcdWrReg1(uint8_t *c, uint8_t regs, uint8_t dir) {
-    int j = 0;
-    int d = (dir) ? 11 : 0;
-    if ((regs & 1) != 0) {
-        lcdRot (lA, dir);
-        lA[d] = c[j++];
-    }
-    if ((regs & 2) != 0) {
-        lcdRot (lB, dir);
-        lB[d] = c[j++];
-    }
-    if ((regs & 4) != 0) {
-        lcdRot(lC, dir);
-        lC[d] = c[j] & 1;
-    }
-}	
-
 void lcdWriteReg(uint8_t adr, uint8_t *c) {
     switch (adr) {
-        case 0x0:  lcdWrReg12(c, lA);  break;
-        case 0x1:  lcdWrReg12(c, lB);  break;
-        case 0x2:  lcdWrReg12(c, lC);  break;
-        case 0x3:  lcdWrReg(c, 3, 6, 1);  break;
-        case 0x4:  lcdWrReg(c, 7, 4, 1);  break;
-        case 0x5:  lcdWrReg(c, 3, 6, 0); break;
-        case 0x6:  lcdWrReg(c, 7, 4, 0); break;
-        case 0x7:  lcdWrReg1(c, 1, 1);  break;
-        case 0x8:  lcdWrReg1(c, 2, 1);  break;
-        case 0x9:  lcdWrReg1(c, 4, 1);  break;
-        case 0xa:  lcdWrReg1(c, 1, 0); break;
-        case 0xb:  lcdWrReg1(c, 2, 0); break;
-        case 0xc:  lcdWrReg1(c, 4, 0); break;
-        case 0xd:  lcdWrReg1(c, 3, 0); break;
-        case 0xe:  lcdWrReg1(c, 7, 1);  break;
-        default:   lcdWrReg1(c, 7, 0); break;
+        case 0x0:  // r A
+            for (int i = 0, j = xA; i < 12; i++) {
+                lA[j] = c[i];
+                j = (j+1) % 12;
+            } break;
+        case 0x1: // r B
+            for (int i = 0, j = xB; i < 12; i++) {
+                lB[j] = c[i];
+                j = (j+1) % 12;
+            } break;
+        case 0x2: // r C
+            for (int i = 0, j = xC; i < 12; i++) {
+                lC[j] = c[i] & 1;
+                j = (j+1) % 12;
+            } break;
+        case 0x3: // r A B
+            for (int i = 0; i < 12; ) {
+                lA[xA] = c[i++];
+                xA = (xA+1) % 12;
+                lB[xB] = c[i++];
+                xB = (xB+1) % 12;
+            } break;
+        case 0x4: // r A B C
+            for (int i = 0; i < 12; ) {
+                lA[xA] = c[i++];
+                xA = (xA+1) % 12;
+                lB[xB] = c[i++];
+                xB = (xB+1) % 12;
+                lC[xC] = c[i++] & 1;
+                xC = (xC+1) % 12;
+            } break;
+        case 0x5: // l A B
+            for (int i = 0; i < 12; ) {
+                xA = (xA+11) % 12;        
+                lA[xA] = c[i++];
+                xB = (xB+11) % 12;      
+                lB[xB] = c[i++];
+            } break;
+        case 0x6: // l A B C
+            for (int i = 0; i < 12; ) {
+                xA = (xA+11) % 12;        
+                lA[xA] = c[i++];
+                xB = (xB+11) % 12;      
+                lB[xB] = c[i++];
+                xC = (xC+11) % 12;      
+                lC[xC] = c[i++] & 1;
+            } break;
+        case 0x7:  // 1r A
+            lA[xA] = c[0];
+            xA = (xA+1) % 12; break;
+        case 0x8:  // 1r B
+            lB[xB] = c[0];
+            xB = (xB+1) % 12; break;
+        case 0x9:  // 1r C
+            lC[xC] = c[0] & 1;
+            xC = (xC+1) % 12; break;
+        case 0xa: // 1l A
+            xA = (xA+11) % 12;
+            lA[xA] = c[0]; break;
+        case 0xb: // 1l B
+            xB = (xB+11) % 12;
+            lB[xB] = c[0]; break;
+        case 0xc: // 1r A B
+            lA[xA] = c[0];
+            xA = (xA+1) % 12;
+            lB[xB] = c[1];
+            xB = (xB+1) % 12; break;
+        case 0xd: // 1l A B
+            xA = (xA+11) % 12;
+            lA[xA] = c[0];
+            xB = (xB+11) % 12;
+            lB[xB] = c[1]; break;
+        case 0xe: // 1r A B C
+            lA[xA] = c[0];
+            xA = (xA+1) % 12;
+            lB[xB] = c[1];
+            xB = (xB+1) % 12;
+            lC[xC] = c[2] & 1;
+            xC = (xC+1) % 12; break;
+        default:  // 1l A B C
+            xA = (xA+11) % 12;
+            lA[xA] = c[0];
+            xB = (xB+11) % 12;
+            lB[xB] = c[1];
+            xC = (xC+11) % 12;
+            lC[xC] = c[2] & 1; break;
     }
     changedL = 1;
 }
@@ -230,7 +265,8 @@ void lcdInitialize() {
 
 static void lcdUpdateTm() {
     uint8_t car;
-    for (int digit = 0, idx = 11; digit < 12; digit++, idx--) {					// 12 digits
+    for (int digit = 0, idx=xA; digit < 12; digit++) {					// 12 digits
+        idx = (idx+11) % 12;
         car = lA[digit] | ((lB[digit] & 0x03) << 4) | ((lC[digit] != 0) ? 0x40 : 0x00);
         if (car >= 80) car = 58;
         lcdDigits[idx] = car;
@@ -281,6 +317,9 @@ uint8_t* lcdSave(uint8_t* output) {
     memcpy(_ptr, lC, sizeof(lC));  _ptr += sizeof(lC);
     memcpy(_ptr, &lE, sizeof(lE)); _ptr += sizeof(lE);
     memcpy(_ptr, &lcdEnable, sizeof(lcdEnable)); _ptr += sizeof(lcdEnable);
+    memcpy(_ptr, &xA, sizeof(xA)); _ptr += sizeof(xA);
+    memcpy(_ptr, &xB, sizeof(xB)); _ptr += sizeof(xB);
+    memcpy(_ptr, &xC, sizeof(xC)); _ptr += sizeof(xC);
     return _ptr;
 }
 
@@ -293,6 +332,9 @@ uint8_t* lcdLoad(uint8_t* input) {
     memcpy(lC, _ptr, sizeof(lC));  _ptr += sizeof(lC);
     memcpy(&lE, _ptr, sizeof(lE)); _ptr += sizeof(lE);
     memcpy(&lcdEnable, _ptr, sizeof(lcdEnable)); _ptr += sizeof(lcdEnable);
+    memcpy(&xA, _ptr, sizeof(xA)); _ptr += sizeof(xA);
+    memcpy(&xB, _ptr, sizeof(xB)); _ptr += sizeof(xB);
+    memcpy(&xC, _ptr, sizeof(xC)); _ptr += sizeof(xC);
     return _ptr;
 }
 
