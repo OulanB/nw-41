@@ -9,10 +9,8 @@
 void kbdDown();
 void kbdUp();
 
-// extern uint64_t key;
 extern uint8_t bkey;
 
-// uint64_t keyScan();
 void keyLoop();
 
 #endif
