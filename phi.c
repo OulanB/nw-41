@@ -7,8 +7,6 @@
  *--------------------------------------
 */
 
-#include <string.h>     // for mem...
-
 #include "main.h"
 
 #include "nut.h"
@@ -126,7 +124,7 @@ void phiReadReg(uint8_t adr, uint8_t *c) {
             }
             break;
         case 0x4:						// read scratch reg
-            memcpy(c, sela ? scratch_a : scratch_b, 14);
+            copy(c, sela ? scratch_a : scratch_b, 14);
             break;
         case 0x5:  						// read interval timer
             if (status[ITEN]) {
@@ -209,7 +207,7 @@ void phiWriteReg(uint8_t adr, uint8_t *c) {
             }
             break;
         case 0x4:    					// write scratch
-            memcpy(sela ? scratch_a : scratch_b, c, 14);
+            copy(sela ? scratch_a : scratch_b, c, 14);
             break;
         case 0x5:  						// write interval timer and start
             ref_in = extapp_millis();
@@ -217,12 +215,10 @@ void phiWriteReg(uint8_t adr, uint8_t *c) {
             in_timer_limit = (uint32_t) ((c[0]+10*(c[1]+10*(c[2]+10*(c[3]+10*c[5]))))*10);
             if (in_timer_limit < 100)
                 in_timer_limit = 100;
-            // printDec8XY(in_timer_limit, 2, 84);
             status[ITEN] = 1;
             break;
         case 0x6: break;				// nothing
         case 0x7:						// stop interval timer 
-            // printDec8XY(0, 2, 84);
             status[ITEN] = 0;
             break;
         case 0x8:						// clear test mode   
@@ -278,11 +274,11 @@ void phiInitialize() {
     clock_b = 0;
     ref_b = ref_a;
     ref_hold = ref_a;
-    memset(scratch_a, 0, 14);
-    memset(scratch_b, 0, 14);
+    zero(scratch_a, 14);
+    zero(scratch_b, 14);
     alarm_a = 0;
     alarm_b = 0;
-    memset(status, 0, 13);
+    zero(status, 13);
     phiService = 0;
 }
 
@@ -344,40 +340,40 @@ uint8_t* phiSave(uint8_t* output) {
     if (status[ITEN]) {
         in_timer += (uint32_t) (ref - ref_in); ref_in = ref;    
     }
-    memcpy(_ptr, &sela, sizeof(sela));  _ptr += sizeof(sela);
-    memcpy(_ptr, &hold, sizeof(hold));  _ptr += sizeof(hold);
-    memcpy(_ptr, &clock_a, sizeof(clock_a)); _ptr += sizeof(clock_a);
-    memcpy(_ptr, &ref_a, sizeof(ref_a)); _ptr += sizeof(ref_a);
-    memcpy(_ptr, &clock_b, sizeof(clock_b)); _ptr += sizeof(clock_b);
-    memcpy(_ptr, &ref_b, sizeof(ref_b)); _ptr += sizeof(ref_b);
-    memcpy(_ptr, &ref_hold, sizeof(ref_hold));  _ptr += sizeof(ref_hold);
-    memcpy(_ptr, &scratch_a, sizeof(scratch_a)); _ptr += sizeof(scratch_a);
-    memcpy(_ptr, &scratch_b, sizeof(scratch_b)); _ptr += sizeof(scratch_b);
-    memcpy(_ptr, &alarm_a, sizeof(alarm_a)); _ptr += sizeof(alarm_a);
-    memcpy(_ptr, &alarm_b, sizeof(alarm_b)); _ptr += sizeof(alarm_b);
-    memcpy(_ptr, &status, sizeof(status)); _ptr += sizeof(status);
-    memcpy(_ptr, &afactor, sizeof(afactor)); _ptr += sizeof(afactor);
-    memcpy(_ptr, &phiService, sizeof(phiService)); _ptr += sizeof(phiService);
+    _ptr += copy(_ptr, (uint8_t*)(&sela), sizeof(sela));
+    _ptr += copy(_ptr, (uint8_t*)(&hold), sizeof(hold));
+    _ptr += copy(_ptr, (uint8_t*)(&clock_a), sizeof(clock_a));
+    _ptr += copy(_ptr, (uint8_t*)(&ref_a), sizeof(ref_a));
+    _ptr += copy(_ptr, (uint8_t*)(&clock_b), sizeof(clock_b));
+    _ptr += copy(_ptr, (uint8_t*)(&ref_b), sizeof(ref_b));
+    _ptr += copy(_ptr, (uint8_t*)(&ref_hold), sizeof(ref_hold));
+    _ptr += copy(_ptr, scratch_a, sizeof(scratch_a));
+    _ptr += copy(_ptr, scratch_b, sizeof(scratch_b));
+    _ptr += copy(_ptr, (uint8_t*)(&alarm_a), sizeof(alarm_a));
+    _ptr += copy(_ptr, (uint8_t*)(&alarm_b), sizeof(alarm_b));
+    _ptr += copy(_ptr, status, sizeof(status));
+    _ptr += copy(_ptr, afactor, sizeof(afactor));
+    _ptr += copy(_ptr, (uint8_t*)(&phiService), sizeof(phiService));
     return _ptr;
 }
 
 uint8_t* phiLoad(uint8_t* input) {
     uint8_t* _ptr = input;
     uint64_t ref = extapp_millis();
-    memcpy(&sela, _ptr, sizeof(sela));  _ptr += sizeof(sela);
-    memcpy(&hold, _ptr, sizeof(hold));  _ptr += sizeof(hold);
-    memcpy(&clock_a, _ptr, sizeof(clock_a)); _ptr += sizeof(clock_a);
-    memcpy(&ref_a, _ptr, sizeof(ref_a)); _ptr += sizeof(ref_a);
-    memcpy(&clock_b, _ptr, sizeof(clock_b)); _ptr += sizeof(clock_b);
-    memcpy(&ref_b, _ptr, sizeof(ref_b)); _ptr += sizeof(ref_b);
-    memcpy(&ref_hold, _ptr, sizeof(ref_hold));  _ptr += sizeof(ref_hold);
-    memcpy(&scratch_a, _ptr, sizeof(scratch_a)); _ptr += sizeof(scratch_a);
-    memcpy(&scratch_b, _ptr, sizeof(scratch_b)); _ptr += sizeof(scratch_b);
-    memcpy(&alarm_a, _ptr, sizeof(alarm_a)); _ptr += sizeof(alarm_a);
-    memcpy(&alarm_b, _ptr, sizeof(alarm_b)); _ptr += sizeof(alarm_b);
-    memcpy(&status, _ptr, sizeof(status)); _ptr += sizeof(status);
-    memcpy(&afactor, _ptr, sizeof(afactor)); _ptr += sizeof(afactor);
-    memcpy(&phiService, _ptr, sizeof(phiService)); _ptr += sizeof(phiService);
+    _ptr += copy((uint8_t*)(&sela), _ptr, sizeof(sela));
+    _ptr += copy((uint8_t*)(&hold), _ptr, sizeof(hold));
+    _ptr += copy((uint8_t*)(&clock_a), _ptr, sizeof(clock_a));
+    _ptr += copy((uint8_t*)(&ref_a), _ptr, sizeof(ref_a));
+    _ptr += copy((uint8_t*)(&clock_b), _ptr, sizeof(clock_b));
+    _ptr += copy((uint8_t*)(&ref_b), _ptr, sizeof(ref_b));
+    _ptr += copy((uint8_t*)(&ref_hold), _ptr, sizeof(ref_hold));
+    _ptr += copy(scratch_a, _ptr, sizeof(scratch_a));
+    _ptr += copy(scratch_b, _ptr, sizeof(scratch_b));
+    _ptr += copy((uint8_t*)(&alarm_a), _ptr, sizeof(alarm_a));
+    _ptr += copy((uint8_t*)(&alarm_b), _ptr, sizeof(alarm_b));
+    _ptr += copy(status, _ptr, sizeof(status));
+    _ptr += copy(afactor, _ptr, sizeof(afactor));
+    _ptr += copy((uint8_t*)(&phiService), _ptr, sizeof(phiService));
     if (status[CKAEN]) {
         clock_a += ref - ref_a; ref_a = ref;
     }
