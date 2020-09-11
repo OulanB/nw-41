@@ -20,7 +20,7 @@ static uint8_t kdown;
 static const uint8_t keyTrans[57][8] = {
 //   norm  +S    alpha +S    User  +S    PSKst PSKnn    
     {0xC6, 0xC6, 0xC6, 0xC6, 0xC6, 0xC6, 0xC6, 0xC6},         // 00 sk_Left             USER
-    {0xC9, 0xC9, 0xC9, 0xC9, 0xC9, 0xC9, 0xC9, 0xC9},         // 01 sk_Up             x BST 
+    {0xCA, 0xCA, 0xCA, 0xCA, 0xCA, 0xCA, 0xCA, 0xCA},         // 01 sk_Up             x BST 
     {0xC2, 0xC2, 0xC2, 0xC2, 0xC2, 0xC2, 0xC2, 0xC2},         // 02 sk_Down             SST
     {0xC5, 0xC5, 0xC5, 0xC5, 0xC5, 0xC5, 0xC5, 0xC5},         // 03 sk_Right            PRGM
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},         // 04 sk_Ok
@@ -35,20 +35,20 @@ static const uint8_t keyTrans[57][8] = {
     {0xC4, 0xC4, 0xC4, 0xC4, 0xC4, 0xC4, 0xC4, 0xC4},         // 13 sk_Alpha            ALPHA
     {0x32, 0x32, 0x3A, 0x32, 0x32, 0x32, 0x32, 0x32},         // 14 sk_XNT            x XEQ     APPEND APPEND
     {0x72, 0x72, 0x7A, 0x72, 0x72, 0x72, 0x72, 0x72},         // 15 sk_Var            x STO     ASTO ASTO
-    {0x82, 0x82, 0x88, 0x82, 0x82, 0x82, 0x82, 0x82},         // 16 sk_ToolBox        x RCL     ARCL ARCL
+    {0x82, 0x82, 0x8A, 0x82, 0x82, 0x82, 0x82, 0x82},         // 16 sk_ToolBox        x RCL     ARCL ARCL
     {0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3},         // 17 sk_Backspace        <-
-    {0xCA, 0xCA, 0x10, 0x10, 0xCA, 0xCA, 0x10, 0x10},         // 18 sk_Exp            x e^x     A   a   01 (Sig+)
+    {0xC8, 0xC8, 0x10, 0x10, 0xC8, 0xC8, 0x10, 0x10},         // 18 sk_Exp            x e^x     A   a   01 (Sig+)
     {0xC0, 0xC0, 0x30, 0x30, 0xC0, 0xC0, 0x30, 0x30},         // 19 sk_Ln               LN      B   b   02 (1/x)
     {0x80, 0x80, 0x70, 0x70, 0x80, 0x80, 0x70, 0x70},         // 20 sk_Log              LOG     C   c   03 (sqrt)
     {0x30, 0x30, 0x80, 0x80, 0x30, 0x30, 0x80, 0x80},         // 21 sk_Imaginary        1/x     D   d   04 (LOG)
     {0x10, 0x10, 0xC0, 0xC0, 0x10, 0x10, 0xC0, 0xC0},         // 22 sk_Comma            Sigma+  E   e   05 (ln)
-    {0x39, 0x39, 0x11, 0x73, 0x39, 0x39, 0x11, 0x00},         // 23 sk_Power          x y^x     F   °
+    {0x38, 0x38, 0x11, 0x73, 0x38, 0x38, 0x11, 0x00},         // 23 sk_Power          x y^x     F   °
     {0x71, 0x71, 0x31, 0x71, 0x71, 0x71, 0x31, 0x11},         // 24 sk_Sine             SIN     G   !=  06 (x<>y)
     {0x81, 0x81, 0x71, 0x81, 0x81, 0x81, 0x71, 0x31},         // 25 sk_Cosine           COS     H   <   07 (Rv)
     {0xC1, 0xC1, 0x81, 0xC1, 0xC1, 0xC1, 0x81, 0x71},         // 26 sk_Tangent          TAN     I   >   08 (SIN)
     {0x73, 0x73, 0xC1, 0x71, 0x73, 0x73, 0xC1, 0x81},         // 27 sk_Pi               CHS     J   !=  09 (COS)
     {0x70, 0x70, 0x32, 0x81, 0x70, 0x70, 0x32, 0xC1},         // 28 sk_Sqrt             SQRT    K   <   10 (TAN)
-    {0x79, 0x79, 0x72, 0xC1, 0x79, 0x79, 0x72, 0x00},         // 29 sk_Square         x x^2     L   >
+    {0x78, 0x78, 0x72, 0xC1, 0x78, 0x78, 0x72, 0x00},         // 29 sk_Square         x x^2     L   >
     {0x34, 0x34, 0x82, 0x34, 0x34, 0x34, 0x82, 0x34},         // 30 sk_7                7       M   7
     {0x74, 0x74, 0x13, 0x74, 0x74, 0x74, 0x13, 0x74},         // 31 sk_8                8       N   8
     {0x84, 0x84, 0x73, 0x84, 0x84, 0x84, 0x73, 0x84},         // 32 sk_9                9       O   9
@@ -78,7 +78,7 @@ static const uint8_t keyTrans[57][8] = {
 };
 
 void kbdDown() {
-    uint8_t j = 0;          // ffsL(key);
+    int j = 0;          // ffsL(key);
     if (bkey >= 53) return;
     if (kdown == 0) {           // no key
         if (stack[0] == 0x0DFA) {           // pkseq ST
@@ -99,8 +99,6 @@ void kbdDown() {
             j = 7;
         } else if (stack[0] == 0x0D37) {   // ___ first digit (ccd osx ?)
             j = 7;
-//        } else if (stack[0] == 0x0EE8) {   // RAMED (ccd osx ?) not good to be changed cf ED too
-//            j = 7;
         } else {
             if (lE & 0x0080) {      // shift ?
                 j += 1;
@@ -115,35 +113,11 @@ void kbdDown() {
         }
         if (keyTrans[bkey][j] != 0) {
             kdown = keyTrans[bkey][j];
-            if (kdown == 0xC9) {            // BST -> shift SST
-                kdown = 0xC2;                   // now SST
+            if ((kdown & 0x08) && (kdown != 0x18)) {
+                kdown ^= 0x08;
                 lE ^= 0x0080;                   // toggle shift in annuciators
                 ram[14][1] ^= 0x1;              // toggle shift in regs
-            }  else if (kdown == 0x79) {    // x^2 -> shift SQRT
-                kdown = 0x70;                   // now SQRT
-                lE ^= 0x0080;                   // toggle shift in annuciators
-                ram[14][1] ^= 0x1;              // toggle shift in regs
-            }  else if (kdown == 0x39) {    // y^x -> shift 1/x
-                kdown = 0x30;                   // now 1/x
-                lE ^= 0x0080;                   // toggle shift in annuciators
-                ram[14][1] ^= 0x1;              // toggle shift in regs
-            }  else if (kdown == 0xCA) {    // e^x -> shift LN
-                kdown = 0xC0;                   // now LN
-                lE ^= 0x0080;                   // toggle shift in annuciators
-                ram[14][1] ^= 0x1;              // toggle shift in regs
-            }  else if (kdown == 0x3A) {    // alpha XEQ -> APPEND (shift XEQ)
-                kdown = 0x32;                   // still XEQ
-                lE ^= 0x0080;                   // toggle shift in annuciators
-                ram[14][1] ^= 0x1;              // toggle shift in regs
-            }  else if (kdown == 0x7A) {    // alpha STO -> ASTO (shift STO)
-                kdown = 0x72;                   // still STO
-                lE ^= 0x0080;                   // toggle shift in annuciators
-                ram[14][1] ^= 0x1;              // toggle shift in regs
-            }  else if (kdown == 0x88) {    // alpha RCL -> ARCL (shift RCL)
-                kdown = 0x82;                   // still RCL
-                lE ^= 0x0080;                   // toggle shift in annuciators
-                ram[14][1] ^= 0x1;              // toggle shift in regs
-            }
+            } 
             kbdPressKey(kdown);
         }
     }
@@ -160,4 +134,3 @@ void keyLoop() {
     uint64_t key = extapp_scanKeyboard();
     bkey = (key != 0) ? 63 - __builtin_clzll(key) : 54;
 }
-
