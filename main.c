@@ -7,10 +7,6 @@
  *--------------------------------------
 */
 
-/* Keep these headers */
-
-
-/* Standard headers (recommended) */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -24,6 +20,19 @@
 #include "../../api/extapp_api.h"
 
 // #define DEBUG
+
+int copy(uint8_t* dest, uint8_t* src, int len) {
+    int l = len;
+    while (len--) {
+        *dest++ = *src++;
+    }
+    return l;
+}
+void zero(uint8_t* dest, int len) {
+    while (len--) {
+        *dest++ = 0;
+    }
+}
 
 void gfxInitialize() {
     extapp_pushRectUniform(0, 0, 320, 240, 0x0000); // light gray screen
