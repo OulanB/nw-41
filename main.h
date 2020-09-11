@@ -17,4 +17,7 @@ void printDec16XY(uint64_t d, int16_t x, int16_t y);
 void printRegXY(uint8_t* c, int16_t x, int16_t y);
 void printRamXY(uint8_t* c, int16_t x, int16_t y);
 
+int copy(uint8_t* dest, uint8_t* src, int len);
+void zero(uint8_t* dest, int len);
+
 #endif
