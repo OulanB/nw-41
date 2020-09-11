@@ -75,15 +75,13 @@ void scannerLoop() {
     if (nutSleep) {
         if (keyState == K_RELEASED)
             keyState = K_IDLE;
-        if ((keyState == K_PRESSED)) { // && !Nut.__wake) {
-            // if (nutKey == 0x18)
-                nutWake();
+        if ((keyState == K_PRESSED)) { 
+            nutWake();
         }
-        if ((keyState == K_WAIT)) { // && !Nut.__wake) {
+        if ((keyState == K_WAIT)) { 
             if (keyDown) {
                 keyState = K_PRESSED;
-                // if (nutKey == 0x18)
-                    nutWake();
+                nutWake();
             } else 
                 keyState = K_IDLE;
         } 
