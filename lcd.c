@@ -7,8 +7,6 @@
  *--------------------------------------
 */
 
-#include <string.h>     // for mem...
-
 #include "gfx.h"
 
 #include "main.h"
@@ -32,13 +30,17 @@ static uint8_t changedA = 0;
 
 const static uint16_t* gfxptr;
 
-
 uint8_t lcdDigits[] = {0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x3B};
 uint8_t lcdDots[] = {0,1,2,3,4,0,1,2,3,4,0,1};
 
 static inline void zeroTm() {
-    memset(lcdDigits, 32, 12);
-    memset(lcdDots, 0, 12);
+    uint8_t* a = lcdDigits;
+    uint8_t* b = lcdDots;
+    int i = 12;
+    while (i--) {
+        *a++ = 32;
+        *b++ = 0;
+    }
 }
 
 void displayOff() {
@@ -167,29 +169,29 @@ void lcdReadReg(uint8_t adr, uint8_t *c) {
 void lcdWriteReg(uint8_t adr, uint8_t *c) {
     switch (adr) {
         case 0x0:  // r A
-            for (int i = 0, j = xA; i < 12; i++) {
-                lA[j] = c[i];
+            for (int i = 0, j = xA; i < 12;) {
+                lA[j] = c[i++];
                 j = (j+1) % 12;
             } break;
         case 0x1: // r B
-            for (int i = 0, j = xB; i < 12; i++) {
-                lB[j] = c[i];
+            for (int i = 0, j = xB; i < 12;) {
+                lB[j] = c[i++];
                 j = (j+1) % 12;
             } break;
         case 0x2: // r C
-            for (int i = 0, j = xC; i < 12; i++) {
-                lC[j] = c[i] & 1;
+            for (int i = 0, j = xC; i < 12;) {
+                lC[j] = c[i++] & 1;
                 j = (j+1) % 12;
             } break;
         case 0x3: // r A B
-            for (int i = 0; i < 12; ) {
+            for (int i = 0; i < 12;) {
                 lA[xA] = c[i++];
                 xA = (xA+1) % 12;
                 lB[xB] = c[i++];
                 xB = (xB+1) % 12;
             } break;
         case 0x4: // r A B C
-            for (int i = 0; i < 12; ) {
+            for (int i = 0; i < 12;) {
                 lA[xA] = c[i++];
                 xA = (xA+1) % 12;
                 lB[xB] = c[i++];
@@ -198,14 +200,14 @@ void lcdWriteReg(uint8_t adr, uint8_t *c) {
                 xC = (xC+1) % 12;
             } break;
         case 0x5: // l A B
-            for (int i = 0; i < 12; ) {
+            for (int i = 0; i < 12;) {
                 xA = (xA+11) % 12;        
                 lA[xA] = c[i++];
                 xB = (xB+11) % 12;      
                 lB[xB] = c[i++];
             } break;
         case 0x6: // l A B C
-            for (int i = 0; i < 12; ) {
+            for (int i = 0; i < 12;) {
                 xA = (xA+11) % 12;        
                 lA[xA] = c[i++];
                 xB = (xB+11) % 12;      
@@ -312,14 +314,14 @@ void lcdDo() {
 
 uint8_t* lcdSave(uint8_t* output) {
     uint8_t* _ptr = output;
-    memcpy(_ptr, lA, sizeof(lA)); _ptr += sizeof(lA);
-    memcpy(_ptr, lB, sizeof(lB));  _ptr += sizeof(lB);
-    memcpy(_ptr, lC, sizeof(lC));  _ptr += sizeof(lC);
-    memcpy(_ptr, &lE, sizeof(lE)); _ptr += sizeof(lE);
-    memcpy(_ptr, &lcdEnable, sizeof(lcdEnable)); _ptr += sizeof(lcdEnable);
-    memcpy(_ptr, &xA, sizeof(xA)); _ptr += sizeof(xA);
-    memcpy(_ptr, &xB, sizeof(xB)); _ptr += sizeof(xB);
-    memcpy(_ptr, &xC, sizeof(xC)); _ptr += sizeof(xC);
+    _ptr += copy(_ptr, lA, sizeof(lA));
+    _ptr += copy(_ptr, lB, sizeof(lB));
+    _ptr += copy(_ptr, lC, sizeof(lC));
+    _ptr += copy(_ptr, (uint8_t*)(&lE), sizeof(lE));
+    _ptr += copy(_ptr, (uint8_t*)(&lcdEnable), sizeof(lcdEnable));
+    _ptr += copy(_ptr, (uint8_t*)(&xA), sizeof(xA));
+    _ptr += copy(_ptr, (uint8_t*)(&xB), sizeof(xB));
+    _ptr += copy(_ptr, (uint8_t*)(&xC), sizeof(xC));
     return _ptr;
 }
 
@@ -327,14 +329,14 @@ uint8_t* lcdLoad(uint8_t* input) {
     uint8_t* _ptr = input;
     changedA = 1;
     changedL = 1;
-    memcpy(lA, _ptr, sizeof(lA)); _ptr += sizeof(lA);
-    memcpy(lB, _ptr, sizeof(lB));  _ptr += sizeof(lB);
-    memcpy(lC, _ptr, sizeof(lC));  _ptr += sizeof(lC);
-    memcpy(&lE, _ptr, sizeof(lE)); _ptr += sizeof(lE);
-    memcpy(&lcdEnable, _ptr, sizeof(lcdEnable)); _ptr += sizeof(lcdEnable);
-    memcpy(&xA, _ptr, sizeof(xA)); _ptr += sizeof(xA);
-    memcpy(&xB, _ptr, sizeof(xB)); _ptr += sizeof(xB);
-    memcpy(&xC, _ptr, sizeof(xC)); _ptr += sizeof(xC);
+    _ptr += copy(lA, _ptr, sizeof(lA));
+    _ptr += copy(lB, _ptr, sizeof(lB));
+    _ptr += copy(lC, _ptr, sizeof(lC));
+    _ptr += copy((uint8_t*)(&lE), _ptr, sizeof(lE));
+    _ptr += copy((uint8_t*)(&lcdEnable), _ptr, sizeof(lcdEnable));
+    _ptr += copy((uint8_t*)(&xA), _ptr, sizeof(xA));
+    _ptr += copy((uint8_t*)(&xB), _ptr, sizeof(xB));
+    _ptr += copy((uint8_t*)(&xC), _ptr, sizeof(xC));
     return _ptr;
 }
 
