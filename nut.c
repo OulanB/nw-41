@@ -11,10 +11,6 @@
 
 // #define DEBUG
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-
 #include "main.h"
 
 #include "lcd.h"
@@ -38,7 +34,7 @@
 
 bool debug = 1;
 
-#define AUTO_OFF 6500*10*60;                        // 10 minutes
+#define AUTO_OFF 6500*2*60;                        // 2 minutes
 static int32_t delayLeave = AUTO_OFF;               // for AUTOOFF delay
 
 typedef struct {
@@ -54,6 +50,8 @@ static uint32_t config = 0x00000001;
 static uint32_t config = 0x00000000;
 #endif
 
+static uint8_t rZero[14] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 static uint8_t rA[14];
 static uint8_t rB[14];
 static uint8_t rC[14];
@@ -61,7 +59,6 @@ static uint8_t rM[14];
 static uint8_t rN[14];
 
 static uint8_t rTmp[14];
-const static uint8_t rZero[14] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static uint8_t rG[2];
 
 static uint8_t fFo[14];
@@ -70,7 +67,7 @@ static uint8_t fS[14];
 
 static uint8_t ptr, base, cy, p_cy, w_cy;
 static int pp, pq;
-const static int pSetMap[] =  {3,4,5,10,8,6,11,15,2,9,7,13,1,12,0,15};
+const static uint8_t pSetMap[16] =  {3,4,5,10,8,6,11,15,2,9,7,13,1,12,0,15};
 
 uint16_t pc;
 static uint16_t ppc;            // previous pc for doBank
@@ -81,7 +78,6 @@ static uint8_t gsub;
 static uint16_t adr;                // current reg access address
 
 uint8_t ram[1024][7];
-
 
 const static uint8_t ramWr[1024/8] = {
 #ifdef HP41CX
@@ -114,35 +110,63 @@ static uint8_t wake = 0;
 
 uint8_t nutKey = 0;
 
-static inline void regAdd(uint8_t* dest, const uint8_t* src2, int i, int last) {
-    do { dest[i] = dest[i] + src2[i] + cy;
-        if (dest[i] >= base) {
-            dest[i] -= base;
-            dest[i] &= 0x0F;
+static inline void regCopy(uint8_t* dest, uint8_t* src, int len) {
+    while (len--) {
+        *dest++ = *src++;
+    }
+}
+static inline void regExch(uint8_t* dest, uint8_t* src, int len) {
+    uint8_t t;
+    while (len--) {
+        t = *dest; 
+        *dest++ = *src;
+        *src++ = t;
+    }
+}
+static inline void regZero(uint8_t* dest, int len) {
+    while (len--) {
+        *dest++ = 0;
+    }
+}
+
+static inline void regAdd(uint8_t* dest, uint8_t* src2,int len) {
+    while (len--) {
+         *dest = *dest + *src2++ + cy;
+        if (*dest >= base) {
+            *dest -= base;
+            *dest &= 0x0F;
             cy = 1;
         } else { cy = 0; }
-    } while (i++ != last); 
+        dest++;
+    }
 }
-static inline void regSub(uint8_t* dest, const uint8_t* src1, const uint8_t* src2, int i, int last) {
-    do { dest[i] = src1[i] - src2[i] - cy;
-        if (dest[i] >= base) {
-            dest[i] += base;
-            dest[i] &= 0x0F;
+static inline void regSub(uint8_t* dest, uint8_t* src1, uint8_t* src2, int len) {
+    while(len--) {
+         *dest = *src1++ - *src2++ - cy;
+        if (*dest >= base) {
+            *dest += base;
+            *dest &= 0x0F;
             cy = 1;
         } else { cy = 0; }
-    } while (i++ != last); 
+        dest++;
+    } 
 }
-static inline void regTestNE(const uint8_t* src1, const uint8_t* src2, int i, int last) { 
-    do { cy |= (src1[i] != src2[i]) ? 1 : 0;
-    } while (i++ != last); 
+static inline void regTestNE(uint8_t* src1, uint8_t* src2, int len) { 
+    while (len--) {
+        cy |= (*src1++ != *src2++) ? 1 : 0;
+    } 
 }
-static inline void regShiftR(uint8_t *dest, int i, int last) {
-	do { dest[i] = (i == last) ? 0 : dest[i+1];
-    } while (i++ != last); 
+static inline void regShiftR(uint8_t *dest, int len) {
+	while (len--) {
+        *dest = (len == 0) ? 0 : dest[1];
+        dest++;
+    }
 }
-static inline void regShiftL(uint8_t *dest, int first, int i) {
-	do { dest[i] = (i == first) ? 0 : dest[i-1];
-    } while (i-- != first); 
+static inline void regShiftL(uint8_t *dest, int len) {
+	while (len--) {
+        *dest = (len == 0) ? 0 : dest[-1];
+        dest--;
+    } 
 }
 static uint16_t popStack() {
     uint16_t ret = stack[0];
@@ -326,114 +350,103 @@ void nutMRomInit() {        // modules roms initialize, now deal only with bankP
 
 static void opArith(uint8_t code) {        // use code
     int first;
-    int last;
     int len;
     uint8_t op = (uint8_t)(code >> 3);
     switch (code & 0x07) {
         case 0:  /* pt  */
-            first = last = (ptr) ? pp : pq;
-            if (first >= WSIZE) {first = 0; last = 0; };
+            first = (ptr) ? pp : pq;
+            if (first >= WSIZE) first = 0; 
             len = 1;
             break;
         case 1:  /* x  */  
-            first = 0; last = EXPSIZE_1; len = 3; 
+            first = 0; len = 3; 
             break;
         case 2:  /* wpt */
-            first = 0; last = (ptr) ? pp :pq;
-            if (last >= WSIZE) last = WSIZE_1;
-            len = last+1;
+            first = 0; len = ((ptr) ? pp :pq)+1;
+            if (len > WSIZE) len = WSIZE;
             break;
         case 3:  /* w  */  
-            first = 0; last = WSIZE_1; len = WSIZE;  
+            first = 0; len = WSIZE;  
             break;
         case 4:  /* pq */
-            first = pp; last = pq;
-            if (first > last) last = WSIZE_1;
-            if (first >= WSIZE) first = 0;
-            if (last >= WSIZE) last = 0;
-            len = last-first+1;
+            first = (pp >= WSIZE) ? 0 : pp;
+            len = ((pp > pq) ? WSIZE_1 : ((pq >= WSIZE) ? 0 : pq)) - first + 1;
             break;
         case 5:  /* xs */  
-            first = EXPSIZE_1; last = EXPSIZE_1; len = 1; 
+            first = EXPSIZE_1; len = 1; 
             break;
         case 6:  /* m  */  
-            first = EXPSIZE;   last = WSIZE_2;  len = 10; 
+            first = EXPSIZE; len = 10; 
             break;
         default: /* s  */  
-            first = WSIZE_1;  last = WSIZE_1;  len = 1; 
+            first = WSIZE_1; len = 1; 
             break;
     }
     switch (op) {
         case 0x00:									  	/* A=0 */
-            memset(rA + first, 0, len); break;
+            regZero(rA + first,len); break;
         case 0x01: 									 	/* B=0 */
-            memset(rB + first, 0, len); break;
+            regZero(rB + first, len); break;
         case 0x02:  									/* C=0 */
-            memset(rC + first, 0, len); break;
+            regZero(rC + first, len); break;
         case 0x03:  									/* AB EX */
-            memcpy(rTmp, rA+first, len);
-            memcpy(rA+first, rB+first, len);
-            memcpy(rB+first, rTmp, len); break;
+            regExch(rB+first, rA+first, len); break;
         case 0x04:  									/* B=A */
-            memcpy(rB+first, rA+first, len); break;
+            regCopy(rB+first, rA+first, len); break;
         case 0x05:  									/* AC EX */
-            memcpy(rTmp, rA+first, len);
-            memcpy(rA+first, rC+first, len);
-            memcpy(rC+first, rTmp, len); break;
+            regExch(rC+first, rA+first, len); break;
         case 0x06:  									/* C=B */
-            memcpy(rC+first, rB+first, len); break;
+            regCopy(rC+first, rB+first, len); break;
         case 0x07:  									/* BC EX */
-            memcpy(rTmp, rC+first, len);
-            memcpy(rC+first, rB+first, len);
-            memcpy(rB+first, rTmp, len); break;
+            regExch(rB+first, rC+first, len); break;
         case 0x08:  									/* A=C */
-            memcpy(rA+first, rC+first, len); break;
+            regCopy(rA+first, rC+first, len); break;
         case 0x09:  									/* A=A+B */
-            regAdd(rA, rB, first, last); break;
+            regAdd(rA+first, rB+first, len); break;
         case 0x0a:  									/* A=A+C */
-            regAdd(rA, rC, first, last); break;
+            regAdd(rA+first, rC+first, len); break;
         case 0x0b:  									/* A=A+1 */
-            cy = 1; regAdd(rA, rZero, first, last); break;
+            cy = 1; regAdd(rA+first, rZero, len); break;
         case 0x0c:  									/* A=A-B */
-            regSub(rA, rA, rB, first, last); break;
+            regSub(rA+first, rA+first, rB+first, len); break;
         case 0x0d:  									/* A=A-1 */
-            cy = 1; regSub(rA, rA, rZero, first, last); break;
+            cy = 1; regSub(rA+first, rA+first, rZero, len); break;
         case 0x0e:  									/* A=A-C */
-            regSub(rA, rA, rC, first, last); break;
+            regSub(rA+first, rA+first, rC+first, len); break;
         case 0x0f:  									/* C=C+C */
-            regAdd(rC, rC, first, last); break;
+            regAdd(rC+first, rC+first, len); break;
         case 0x10:  									/* C=A+C */
-            regAdd(rC, rA, first, last); break;
+            regAdd(rC+first, rA+first, len); break;
         case 0x11:  									/* C=C+1 */
-            cy = 1; regAdd(rC, rZero, first, last); break;
+            cy = 1; regAdd(rC+first, rZero, len); break;
         case 0x12:  									/* C=A-C */
-            regSub(rC, rA, rC, first, last); break;
+            regSub(rC+first, rA+first, rC+first, len); break;
         case 0x13:  									/* C=C-1 */
-            cy = 1; regSub(rC, rC, rZero, first, last); break;
+            cy = 1; regSub(rC+first, rC+first, rZero, len); break;
         case 0x14:  									/* C=-C */
-            regSub(rC, rZero, rC, first, last); break;
+            regSub(rC+first, rZero, rC+first, len); break;
         case 0x15:  									/* C=-C-1 */
-            cy = 1; regSub(rC, rZero, rC, first, last); break;
+            cy = 1; regSub(rC+first, rZero, rC+first, len); break;
         case 0x16:  									/* ?B#0 */
-            regTestNE(rB, rZero, first, last); break;
+            regTestNE(rB+first, rZero, len); break;
         case 0x17:                                      /* ?C#0 */
-            regTestNE(rC, rZero, first, last); break;
+            regTestNE(rC+first, rZero, len); break;
         case 0x18:                                      /* ?A<C */
-            regSub(rTmp, rA, rC, first, last); break;
-        case 0x19:  /* ?A<B */
-            regSub(rTmp, rA, rB, first, last); break;
+            regSub(rTmp, rA+first, rC+first, len); break;
+        case 0x19:                                      /* ?A<B */
+            regSub(rTmp, rA+first, rB+first, len); break;
         case 0x1a:                                      /* ?A#0 */
-            regTestNE(rA, rZero, first, last); break;
+            regTestNE(rA+first, rZero, len); break;
         case 0x1b:                                      /* ?A#C */
-            regTestNE(rA, rC, first, last); break;
-        case 0x1c:  /* ASR */
-            regShiftR(rA, first, last); break;
-        case 0x1d:  /* BSR */
-            regShiftR(rB, first, last); break;
-        case 0x1e:  /* CSR */
-            regShiftR(rC, first, last); break;
-        default:    /* ASL */
-            regShiftL(rA, first, last); break;
+            regTestNE(rA+first, rC+first, len); break;
+        case 0x1c:                                      /* ASR */
+            regShiftR(rA+first, len); break;
+        case 0x1d:                                      /* BSR */
+            regShiftR(rB+first, len); break;
+        case 0x1e:                                      /* CSR */
+            regShiftR(rC+first, len); break;
+        default:                                        /* ASL */
+            regShiftL(rA+first+len-1, len); break;
     }
 }
 
@@ -443,53 +456,38 @@ static void opMisc0(uint8_t codeh) {     // use  codeh
             if (gsub) pc = popStack();
             break;
         case 0x1:			// WROM for hepax ram only
-            // Log.d(__D_TAG, "WROM");
             break;
         case 0x2:			// 0x080
-            // Log.d(__D_TAG, "n/a 080");
             break;
         case 0x3:			// 0x0C0
-            // Log.d(__D_TAG, "n/a 0C0");
             break;
         case 0x4:			// ENROM1
             doBank(1);
-            // Log.d(__D_TAG, "ENROM1");
             break;
         case 0x5:			// ENROM3
             doBank(3);
-            // Log.d(__D_TAG, "ENROM3");
             break;
         case 0x6:			// ENROM2
             doBank(2);
-            // Log.d(__D_TAG, "ENROM2");
             break;
         case 0x7:			// ENROM4
             doBank(4);
-            // Log.d(__D_TAG, "ENROM4");
             break;
         case 0x8:			// 0x200
-            // Log.d(__D_TAG, "n/a 200");
             break;
         case 0x9:			// 0x240
-            // Log.d(__D_TAG, "n/a 240");
             break;
         case 0xA:			// 0x280
-            // Log.d(__D_TAG, "n/a 280");
             break;
         case 0xB:			// 0x2C0
-            // Log.d(__D_TAG, "n/a 2C0");
             break;
         case 0xC:			// 0x300
-            // Log.d(__D_TAG, "n/a 300");
             break;
         case 0xD:			// 0x340
-            // Log.d(__D_TAG, "n/a 340");
             break;
         case 0xE:			// 0x380
-            // Log.d(__D_TAG, "n/a 380");
             break;
-        case 0xF:			// 0x3C0
-            // Log.d(__D_TAG, "n/a 3C0");
+        default:			// 0x3C0
             break;
     }
 }
@@ -524,30 +522,19 @@ void opMisc6(uint8_t codeh) {
         case 0x4:			// 0x118
             break;
         case 0x5:			// M=C
-            memcpy(rM, rC, WSIZE); break;
+            regCopy(rM, rC, WSIZE); break;
         case 0x6:			// C=M
-            memcpy(rC, rM, WSIZE); break;
+            regCopy(rC, rM, WSIZE); break;
         case 0x7:			// CM EX
-            memcpy(rTmp, rC, WSIZE);
-            memcpy(rC, rM, WSIZE);
-            memcpy(rM, rTmp, WSIZE); break;
+            regExch(rM, rC, WSIZE); break;
         case 0x8:			// 0x218
             break;
         case 0x9:			// F=SB
-            for (int i = 0; i <= 7; i++)
-                fFo[i] = fS[i]; 
-            break;
+            regCopy(fFo, fS, 8); break;
         case 0xA:			// SB=F
-            for (int i = 0; i <= 7; i++)
-                fS[i] = fFo[i]; 
-            break;
+            regCopy(fS, fFo, 8); break;
         case 0xB:			// F EX SB      used only for TONE 
-            for (int i= 0; i <= 7; i++) {
-                uint8_t tm = fS[i];
-                fS[i] = fFo[i];
-                fFo[i] = tm;
-            } 
-            break;
+            regExch(fS, fFo, 8); break;
         case 0xC:			// 0x318
             break;
         case 0xD:			// ST=C
@@ -612,9 +599,9 @@ static void opMisc8(uint8_t codeh) {
             cy = 0;			    // never low bat :)
             break;
         case 0x6:			// CLRABC
-            memset(rA, 0, WSIZE);
-            memset(rB, 0, WSIZE);
-            memset(rC, 0, WSIZE); 
+            regZero(rA, WSIZE);
+            regZero(rB, WSIZE);
+            regZero(rC, WSIZE); 
             break;
         case 0x7:			// GOTOC
             pc = (rC[6] << 12) | (rC[5] << 8) | (rC[4] << 4) | rC[3];
@@ -650,19 +637,15 @@ static void opMiscC(uint8_t codeh) {
     uint16_t data;
     switch(codeh) {
         case 0x0:			// DISBLK or ROM BLK for Hepax 
-            // Log.d(__D_TAG, "DISBLK");
             break;
         case 0x1:			// N=C
-            memcpy(rN, rC, WSIZE); 
+            regCopy(rN, rC, WSIZE); 
             break;
         case 0x2:			// C=N
-            memcpy(rC, rN, WSIZE); 
+            regCopy(rC, rN, WSIZE); 
             break;
         case 0x3:			// CN EX
-            memcpy(rTmp, rC, WSIZE);
-            memcpy(rC, rN, WSIZE);
-            memcpy(rN, rTmp, WSIZE); 
-            break;
+            regExch(rN, rC, WSIZE); break;
         case 0x4:			// LDI
             data = fetchRomPc();
             rC[2] = (uint8_t) ((data >> 8) & 0x0F);
@@ -680,7 +663,6 @@ static void opMiscC(uint8_t codeh) {
             rC[3] = (uint8_t) (addr & 0x0F);
             break;
         case 0x7:			// 0x1F0 WPTOG for Hepax
-            // Log.d(__D_TAG, "n/a 1F0");
             break;
         case 0x8:			// GOKEYS
             pc = (pc & 0xFF00) | (uint16_t)(nutKey & 0x00FF);
@@ -737,7 +719,7 @@ static void opMiscC(uint8_t codeh) {
     }
 }
 static void opMiscD(uint8_t codeh) {     // use codeh
-    // Log.d(__D_TAG, "n/a "+debug_short((short)((code << 6) + 0x34)));		
+    // for peripherals 
 }
 
 static void opMisc(uint8_t code) {      // use code 
@@ -749,8 +731,7 @@ static void opMisc(uint8_t code) {      // use code
         case 0x01:					// Sx=0
             if (codeh == 0xF) {				// CLRST
                 for (int i = 0; i <= 7; i++) fS[i] = 0;
-            } else if (codeh == 0x7) {		// n/a
-                // Log.d(__D_TAG, "n/a 1C4");
+            } else if (codeh == 0x7) {		// 0x1C4
             } else {
                 fS[pSetMap[codeh]] = 0;
             }
@@ -758,8 +739,7 @@ static void opMisc(uint8_t code) {      // use code
         case 0x02:					// Sx=1
             if (codeh == 0xF) {				// RSTKB
                 scannerOpResetKeyboard();
-            } else if (codeh == 0x7) {		// n/a
-                // Log.d(__D_TAG, "n/a 1C8");
+            } else if (codeh == 0x7) {		// 0x1C8
             } else {
                 fS[pSetMap[codeh]] = 1;
             }
@@ -767,8 +747,7 @@ static void opMisc(uint8_t code) {      // use code
         case 0x03:					// ?Sx=1
             if (codeh == 0xF) {				// CHKKB
                 cy = scannerOpCheckKeyboard();
-            } else if (codeh == 0x7) {		// n/a
-                // Log.d(__D_TAG, "n/a 1CC");
+            } else if (codeh == 0x7) {		// 0x1CC
             } else {
                 cy = fS[pSetMap[codeh]];
             }
@@ -789,8 +768,7 @@ static void opMisc(uint8_t code) {      // use code
                 } else {
                     if (pq > 0) pq--; else pq = WSIZE_1;
                 }
-            } else if (codeh == 0x7) {		// n/a
-                // Log.d(__D_TAG, "n/a 1D4");
+            } else if (codeh == 0x7) {		// 0x1D4
             } else {
                 cy = (((ptr) ? pp : pq) == pSetMap[codeh]) ? 1 : 0;
             }
@@ -805,8 +783,7 @@ static void opMisc(uint8_t code) {      // use code
                 } else  {
                     if (pq == WSIZE_1) pq = 0; else pq++;
                 }
-            } else if (codeh == 0x7) {		// n/a
-                // Log.d(__D_TAG, "n/a 1DC");
+            } else if (codeh == 0x7) {		// 0x1DC
             } else {						// PT=x
                 if (ptr) {
                     pp = pSetMap[codeh]; 
@@ -819,7 +796,6 @@ static void opMisc(uint8_t code) {      // use code
             opMisc8(codeh); 
             break;
         case 0x09:					// SELFP x
-            // Log.d(__D_TAG, "SELPF "+String.valueOf(code));
             break;
         case 0x0A:					// REGx=C
             adr = (adr & 0x3F0) | (uint16_t)(codeh);
@@ -832,10 +808,8 @@ static void opMisc(uint8_t code) {      // use code
             }
             break;
         case 0x0B:					// ?Fx=1
-            if (codeh == 0xF) {				// n/a
-                // Log.d(__D_TAG, "n/a 1EC");
-            } else if (codeh == 0x7) {		// n/a
-                // Log.d(__D_TAG, "n/a 3EC");
+            if (codeh == 0xF) {				// 0x1EC
+            } else if (codeh == 0x7) {		// 0x3EC
             } else {					// ?Fx=1
                 fFi[13] = fFi[12] = phiService;
                 cy = fFi[pSetMap[codeh]];
@@ -862,7 +836,7 @@ static void opMisc(uint8_t code) {      // use code
             break;
         default:					// RCR x
             if (codeh == 0x7) {			// WCMD
-            } else if (codeh == 0xF) {	// n/a 3FC
+            } else if (codeh == 0xF) {	// 0x3FC
                 displayCi();
             } else {					// RCR x
                 int j = pSetMap[codeh];
@@ -870,9 +844,7 @@ static void opMisc(uint8_t code) {      // use code
                     rTmp[i] = rC[j];
                     j = (j == WSIZE_1) ? 0 : j+1;
                 }
-                for (int i = 0; i < WSIZE; i++) {
-                     rC[i] = rTmp[i];
-                }
+                regCopy(rC, rTmp, WSIZE);
             }
             break;
     }
@@ -894,8 +866,8 @@ void nutInit() {
     pp = 0;
     pq = 0;
     adr = 0;
-    for (i=0; i < 8; i++) fFo[i] = 0;    
-    memset(ram, 0, 7*1024);
+    regZero(fFo, 8);
+    zero((uint8_t*)(ram), 7*1024);
     displayOff();
 }
 
@@ -995,35 +967,35 @@ uint8_t nutLoop() {
 
 uint8_t* nutSave(uint8_t* output) {
     uint8_t* _ptr=output;
-    memcpy(_ptr, &config, sizeof(config)); _ptr+= sizeof(config);
-    memcpy(_ptr, &rA, sizeof(rA)); _ptr += sizeof(rA);
-    memcpy(_ptr, &rB, sizeof(rB)); _ptr += sizeof(rB);
-    memcpy(_ptr, &rC, sizeof(rC)); _ptr += sizeof(rC);
-    memcpy(_ptr, &rM, sizeof(rM)); _ptr += sizeof(rM);
-    memcpy(_ptr, &rN, sizeof(rN)); _ptr += sizeof(rN);
-    memcpy(_ptr, &rG, sizeof(rG)); _ptr += sizeof(rG);
-    memcpy(_ptr, &fFi, sizeof(fFi)); _ptr += sizeof(fFi);
-    memcpy(_ptr, &fFo, sizeof(fFo)); _ptr += sizeof(fFo);
-    memcpy(_ptr, &fS, sizeof(fS)); _ptr += sizeof(fS);
-    memcpy(_ptr, stack, sizeof(stack)); _ptr += sizeof(stack);
-    memcpy(_ptr, &pc, sizeof(pc)); _ptr += sizeof(pc);
-    memcpy(_ptr, &adr, sizeof(adr)); _ptr += sizeof(adr);
-    memcpy(_ptr, &ptr, sizeof(ptr)); _ptr += sizeof(ptr);
-    memcpy(_ptr, &pp, sizeof(pp)); _ptr += sizeof(pp);
-    memcpy(_ptr, &pq, sizeof(pq)); _ptr += sizeof(pq);
-    memcpy(_ptr, &base, sizeof(base)); _ptr += sizeof(base);
-    memcpy(_ptr, &cy, sizeof(cy)); _ptr += sizeof(cy);
-    memcpy(_ptr, &p_cy, sizeof(p_cy)); _ptr += sizeof(p_cy);
-    memcpy(_ptr, &w_cy, sizeof(w_cy)); _ptr += sizeof(w_cy);
-    memcpy(_ptr, &wake, sizeof(wake)); _ptr += sizeof(wake);
+    _ptr += copy(_ptr, (uint8_t*)(&config), sizeof(config));
+    _ptr += copy(_ptr, rA, sizeof(rA));
+    _ptr += copy(_ptr, rB, sizeof(rB));
+    _ptr += copy(_ptr, rC, sizeof(rC));
+    _ptr += copy(_ptr, rM, sizeof(rM));
+    _ptr += copy(_ptr, rN, sizeof(rN));
+    _ptr += copy(_ptr, rG, sizeof(rG));
+    _ptr += copy(_ptr, fFi, sizeof(fFi));
+    _ptr += copy(_ptr, fFo, sizeof(fFo));
+    _ptr += copy(_ptr, fS, sizeof(fS));
+    _ptr += copy(_ptr, (uint8_t*)(stack), sizeof(stack));
+    _ptr += copy(_ptr, (uint8_t*)(&pc), sizeof(pc));
+    _ptr += copy(_ptr, (uint8_t*)(&adr), sizeof(adr));
+    _ptr += copy(_ptr, (uint8_t*)(&ptr), sizeof(ptr));
+    _ptr += copy(_ptr, (uint8_t*)(&pp), sizeof(pp));
+    _ptr += copy(_ptr, (uint8_t*)(&pq), sizeof(pq));
+    _ptr += copy(_ptr, (uint8_t*)(&base), sizeof(base));
+    _ptr += copy(_ptr, (uint8_t*)(&cy), sizeof(cy));
+    _ptr += copy(_ptr, (uint8_t*)(&p_cy), sizeof(p_cy));
+    _ptr += copy(_ptr, (uint8_t*)(&w_cy), sizeof(w_cy));
+    _ptr += copy(_ptr, (uint8_t*)(&wake), sizeof(wake));
     int p;
     for (p = 0; p < 16; p++) {
-        memcpy(_ptr, &bank[p].curBank, sizeof(bank[p].curBank)); _ptr += sizeof(bank[p].curBank);
+        _ptr += copy(_ptr, &bank[p].curBank, sizeof(bank[p].curBank));
     }
     int i = 0; 
     int j = 0x01;
     for (p=0; p<1024; p++) {
-        if (ramWr[i] & j) { memcpy(_ptr, &ram[p], 7); _ptr += 7; }
+        if (ramWr[i] & j) { _ptr += copy(_ptr, (uint8_t*)(&ram[p][0]), 7); }
         if (j == 0x80) { j = 0x01; i += 1; }
         else j += j;
     }
@@ -1033,40 +1005,39 @@ uint8_t* nutSave(uint8_t* output) {
 uint8_t* nutLoad(uint8_t* input) {
     uint8_t* _ptr=input;
     uint32_t configL;
-    memcpy(&configL, _ptr, sizeof(config)); _ptr+= sizeof(config);
+    _ptr += copy((uint8_t*)(&configL), _ptr, sizeof(config));
     if (configL != config) return NULL; // force MEMORY LOST
-    memcpy(&rA, _ptr, sizeof(rA)); _ptr += sizeof(rA);
-    memcpy(&rB, _ptr, sizeof(rB)); _ptr += sizeof(rB);
-    memcpy(&rC, _ptr, sizeof(rC)); _ptr += sizeof(rC);
-    memcpy(&rM, _ptr, sizeof(rM)); _ptr += sizeof(rM);
-    memcpy(&rN, _ptr, sizeof(rN)); _ptr += sizeof(rN);
-    memcpy(&rG, _ptr, sizeof(rG)); _ptr += sizeof(rG);
-    memcpy(&fFi, _ptr, sizeof(fFi)); _ptr += sizeof(fFi);
-    memcpy(&fFo, _ptr, sizeof(fFo)); _ptr += sizeof(fFo);
-    memcpy(&fS, _ptr, sizeof(fS)); _ptr += sizeof(fS);
-    memcpy(&stack, _ptr, sizeof(stack)); _ptr += sizeof(stack);
-    memcpy(&pc, _ptr, sizeof(pc)); _ptr += sizeof(pc);
-    memcpy(&adr, _ptr, sizeof(adr)); _ptr += sizeof(adr);
-    memcpy(&ptr, _ptr, sizeof(ptr)); _ptr += sizeof(ptr);
-    memcpy(&pp, _ptr, sizeof(pp)); _ptr += sizeof(pp);
-    memcpy(&pq, _ptr, sizeof(pq)); _ptr += sizeof(pq);
-    memcpy(&base, _ptr, sizeof(base)); _ptr += sizeof(base);
-    memcpy(&cy, _ptr, sizeof(cy)); _ptr += sizeof(cy);
-    memcpy(&p_cy, _ptr, sizeof(p_cy)); _ptr += sizeof(p_cy);
-    memcpy(&w_cy, _ptr, sizeof(w_cy)); _ptr += sizeof(w_cy);
-    memcpy(&wake, _ptr, sizeof(wake)); _ptr += sizeof(wake);
+    _ptr += copy(rA, _ptr, sizeof(rA));
+    _ptr += copy(rB, _ptr, sizeof(rB));
+    _ptr += copy(rC, _ptr, sizeof(rC));
+    _ptr += copy(rM, _ptr, sizeof(rM));
+    _ptr += copy(rN, _ptr, sizeof(rN));
+    _ptr += copy(rG, _ptr, sizeof(rG));
+    _ptr += copy(fFi, _ptr, sizeof(fFi));
+    _ptr += copy(fFo, _ptr, sizeof(fFo));
+    _ptr += copy(fS, _ptr, sizeof(fS));
+    _ptr += copy((uint8_t*)(stack), _ptr, sizeof(stack));
+    _ptr += copy((uint8_t*)(&pc), _ptr, sizeof(pc));
+    _ptr += copy((uint8_t*)(&adr), _ptr, sizeof(adr));
+    _ptr += copy((uint8_t*)(&ptr), _ptr, sizeof(ptr));
+    _ptr += copy((uint8_t*)(&pp), _ptr, sizeof(pp));
+    _ptr += copy((uint8_t*)(&pq), _ptr, sizeof(pq));
+    _ptr += copy((uint8_t*)(&base), _ptr, sizeof(base));
+    _ptr += copy((uint8_t*)(&cy), _ptr, sizeof(cy));
+    _ptr += copy((uint8_t*)(&p_cy), _ptr, sizeof(p_cy));
+    _ptr += copy((uint8_t*)(&w_cy), _ptr, sizeof(w_cy));
+    _ptr += copy((uint8_t*)(&wake), _ptr, sizeof(wake));
     int p;
     for (p = 0; p < 16; p++) {
-        memcpy(&bank[p].curBank, _ptr, sizeof(bank[p].curBank)); _ptr += sizeof(bank[p].curBank);
+        _ptr += copy(&bank[p].curBank, _ptr, sizeof(bank[p].curBank));
     }
     int i = 0; 
     int j = 0x01;
     for (p=0; p<1024; p++) {
-        if (ramWr[i] & j) { memcpy(&ram[p], _ptr, 7); _ptr += 7; }
-        else memset(&ram[p], 0, 7);
+        if (ramWr[i] & j) { _ptr += copy((uint8_t*)(&ram[p][0]), _ptr, 7); }
+        else regZero((uint8_t*)(&ram[p][0]), 7);
         if (j == 0x80) { j = 0x01; i += 1; }
         else j += j;
     }
     return _ptr;
 }
-
